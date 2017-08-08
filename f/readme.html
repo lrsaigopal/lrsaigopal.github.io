@@ -1,0 +1,200 @@
+<html>
+<head>
+<title> Read Me</title>
+</head>
+<body>
+<pre>
+
+For any assistance/problems accessing the vm please mail us at(vjteja(at)gmail.com,karishma2812(at)gmail.com,mail(at)saigopal.com) and we shall help in running the setup.
+
+
+Deplyoment setup :
+
+Network:
+We are using mininet to emulate a data center network and have devoloped a topology module for mininet that can generate custom 3-tier data center topologies.
+
+Controller and application:
+POX is the controller that we are using. Our app is developed as a component on top of POX.
+
+There are 2 VMs with both mininet and app installed. Either of them can be used as network or controller.
+
+The hosts of the VMs can be accessed through ssh:
+ssh -p 8002 ccem@ise.pesit.pes.edu
+ssh -p 8003 ccem@ise.pesit.pes.edu
+
+The password is "meccmecc"
+
+Once logged in you can ssh to the VM using:
+
+ssh mininet@192.168.56.101
+
+The password for mininet VM is "mininet"
+
+On both the VMs eth0 is the virtualvox host only network adapter and eth1 is the bridged adapter.
+
+Starting Mininet :
+To start mininet, you need 2 params : the parameters for 3-tier DC topolgy and the IP details of controller:
+
+Eg :
+sudo mn --controller=remote,ip=10.1.12.157,port=6633 --custom ~/mininet/custom/genTreeTopo.py --topo gentreetopo,2,2,2,4,2
+
+
+Command explanation :
+
+--controller option specifies the location of the controller the switches have to connect to.
+Ip and port specify the IP of the machine on which the controller is running and port specifies the port on which the controller is listening.
+To get the IP, login to the 2nd VM, run ifconfig and use the IP of eth1, which should be in 10.0 range.
+The default port on which POX runs is 6633.
+
+--custom option is used to specify the path of a file to load a custom topology from.
+The code for building a generic, 3-tier, multi rooted tree topology resides in ~/mininet/custom/genTreeTopo.py
+
+--topo option specifies the network topology to be built.
+gentreetopo is the name of our 3-tier topology.
+It takes the following parameters in the following order:
+1. number of pods. A pod is a connected component of aggregate and edge switches obtained after core switches are removed from the topology.
+2. number of core switches
+3. number of aggregate switches per pod
+4. number of edge switches per pod
+5. number of hosts per edge switch
+
+An example topology with the following params:
+--topo gentreetopo,2,2,2,4,2
+http://i.snag.gy/ThwI9.jpg
+
+Starting POX :
+An example command to start POX with our broadcast reduction component:
+~/pox/pox.py openflow.discovery broadcast_reduction --arp_timeout=5
+
+Command explanation:
+When starting POX, you specify all the modules/components that you want to launch.
+Our component is broadcast_reduction and it depends on 'openflow.discovery' which is a stock component provided by POX.
+openflow.discovery component disocvers the switch links using LLDP and provides links events which our component uses to build a global view of the entire network.
+
+
+The broadcast_reduction component takes a few parameters :
+
+- These 3 parameters control when the network discovery(discovery of all switches and the links between them) is considered complete. After this, the component starts partitioning the topology and inserting forwarding entries.
+*setup - specifies the number of seconds after which to consider network discovery complete
+*num_links - specifies the number of links to discover after which the disocovery is considered complete
+*max_link_interval - specifies the max number of seconds after last link was discovered, after which network discovery isconsidered complete. 
+max_link_interval is the default parameter used to indicate discovery completion and the default value is 5s. If no new link is discovered for 5s, then its assumed that all the links in the network have been discovered.
+
+- connected_perc - This parameter specifies the maximum percentage of ports connected to other switches in an edge switch.
+This is required by our component to identify the edge switches, since it assumes edge switches have most of their ports conncted to hosts rather than other switches. The default value is 50 i.e not more than 50% of an edge switche's ports are connected to other(aggregate) switches.
+
+- arp_timeout - This parameter specifies the maximum time(in secs) of any hosts ARP cache, i.e. the time after which an entry in an ARP table becomes stale.
+When an IP moves within the data center(eg : migration of virtual machine(VM), Virtual IP), its Pseudo MAC(PMAC) changes and all the packets to the old PMAC are diverted to the new PMAC for some time. This is done for as long as arp_timeout since after the timeout, a host again makes an ARP request and the application will respond back with the updated PMAC.
+The default value is 2s.
+
+
+Once both Mininet and POX have started, look at the POX console.
+First you would see messages like "INFO:openflow.of_01:[00-00-00-00-00-01 2] connected"
+These are the mininet switches connecting to the controller. In this case switch with DPID 00-00-00-00-00-01 has connected.
+The messages of this sort occur:
+INFO:openflow.discovery:link detected: 00-00-00-00-00-01.2 -> 00-00-00-00-00-1a.2
+These are indicating that a link between switches of DPID 00-00-00-00-00-01 and 00-00-00-00-00-1a has been discovered.
+Following this would be 
+"App initialization started"
+This indicates that network discovery has been completed and our app starts paritioning the network, inserts forwardings entries into the switches, etc.
+After that there would be some debug info on the category of switches, their internal positions etc.
+'App initialization done' message comes in the end and indicates that all the neccessary forwarding entries have been inserted into the switches and communicaiton between hosts can happen now.
+
+Now we can move back to mininet console to test communication between them.
+Regular commands in mininet like pingall can be used to test connectivity among hosts.
+pingall serially pings each host in the network to each other.
+
+Evaluating performance improvement:
+
+We are using 2 metrics for peformance evaluation:
+1)Total amount of traffic in the network to evaluate the effect on broadcast traffic
+To get the amount of traffic in the network, we have developed a module in POX which polls all the switches for their traffic.
+Openflow switches provide counters for the amount of trasnmitted and received packets. The data from these counters is aggregated to obtain the total amount of traffic that flowed through the network so far.
+The name of the module is 'global_switch_stats' and it provides its interface through POX py console. Hence even py component is needed to use global_switch_stats.
+
+POX can be started using this: 
+~/pox/pox.py py openflow.discovery broadcast_reduction global_switch_stats
+
+To get the total traffic in the network until then, you can run 'gstats()' on the POX console.
+It returns the aggregated number of pkts trasmitted, received, dropped and errored within the network. Eg :
+rx_packets : 2725 tx_packets : 3250 rx_dropped : 0 tx_dropped : 0 rx_errors : 0 tx_errors : 0
+
+
+2)RTT of packets to evaluate increase in efficiency.
+Since mininet does not provide any command to generate lot of parallel traffic, we have developed a command to generate lot of parallel traffic and obtain stats from it.
+Our module randomly choses a pair of hosts every few milli seconds and issues a ping command between them. This way huge amounts of ping traffic is generated in the network and the results of the ping are parsed to obtain RTT.
+The custom mininet command to generate traffic is "genTraffic"
+It takes 4 parameters :
+1. interval - interval(in ms) between issue of ping commands. The default value is 10ms.
+2. duration - for how long to issue ping commands. The default value is 1000ms. A negative value can be given to instead specify the total num of pkts to issue.
+3. count - the number of packets to send in each ping command. The default value is 3.
+4. output file - the file to write the generated output into. By default it does not print the output to screen or file. To print the output to screen/stdout it takes a special value '.'
+Example usage: 
+genTraffic 10 5000 5
+It returns the # of ping commands issued, the # of ping commands whose output was parsed, the total num of packets sent, received and the average rtt(in ms) of the pkts.
+Eg:
+Total ping cmds:9, op parsed:9, pkts sent:45, pkts recvd:45, avg rtt:5.52466666667
+
+The above modules can be used to compare performance between forwarding using our app and using normal layer 2 forwarding.
+To start POX with normal layer 2(L2) switch forwarding :
+~/pox/pox.py py openflow.discovery openflow.spanning_tree forwarding.l2_learning global_switch_stats
+
+Here there are 2 new components :
+ - openflow.spanning_tree. This component runs the spanning tree protocol on the network switches and is required when there are loops in the network, which is the case with our 3 tier dc topologies. This component also relies on openflow.discovery to build a view of the network.
+ - forwarding.l2_learning component is responsible for making the switches function as a layer 2 forwarding switch.
+
+
+Methodology used for generating results:
+genTraffic was run on mininet with 15K ping packets as parameter, to generate lot of traffic. The result(RTT) was noted down and gstats was run immediately on the POX console to note down the amount of traffic generated by the 15K ping pkts. This was done with our app in one trial and with normal layer 2 switch forwarding in another.
+This was repeated for varying the number of hosts(changing the hosts per edge switch) in the network to simulate larger networks.
+
+
+Extra :
+
+Mininet:
+GTBatch - this command is used to run genTraffic in batch with different parameters. It takes its input from a file.
+It takes 2 params.
+1. The input file from where to take the set of params for different runs
+2. The output file to write the result of each run into. The default value is None. So does not write into any file.
+This module also store the results of all the runs in memory so that particular run result can be queried later on.
+There should be one line for one each run in the input file. That line should contain only the parameters passed to genTraffic in the same order and syntax.
+Example of command invocation:
+GTBatch gtb_inp.txt gtb_op.txt
+
+Eg of inp file:
+10 1000 5
+10 1000 2
+20 3000 10
+
+Eg of output file:
+Total ping cmds:8, op parsed:8, pkts sent:40, pkts recvd:40, avg rtt:6.337625
+Total ping cmds:6, op parsed:6, pkts sent:12, pkts recvd:12, avg rtt:13.6621666667
+Total ping cmds:8, op parsed:8, pkts sent:80, pkts recvd:80, avg rtt:2.186875
+
+res - this command is used to query the results of the last GTBatch run. It takes the line num in the inp file as input and gives the result of the genTraffic run for those params.
+Eg :
+res 2
+This will return the genTraffic results for 2nd line - '10 1000 2'.
+
+POX:
+The followin 2 commands can be run on the POX console to proactively migrate VMs instead of waiting for the app to detect migration(detected on gratitous ARP or 1st ARP request from the migrated VM).
+
+move - this command is used to move a VM from one position in the topology to another.
+It takes 3 parameters :
+host to move - the IP address of the host to move, in string format
+switch       - the dpid of the new switch the host should be moved to
+port         - the port in the new switch the host should be moved to
+Eg : 
+move('10.0.0.1', 7, 4)
+
+move_batch - this command is used to move multiple VMs. The parameter is a filename from which it takes its input
+Eg:
+move_batch('vms_to_migrate.txt')
+The input file should have one line for each VM to be moved. The syntax of the line is as follows :
+<ip address of the host or VM> <destination switch> <port on destination switch>
+Eg :
+10.0.0.1 7 4
+10.0.0.2 3 3
+</pre>
+</body>
+</html>

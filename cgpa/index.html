@@ -1,0 +1,64 @@
+<html><head><title>CGPA Calc</title>
+<meta name=viewport content="width=device-width, initial-scale=1">
+<script type="text/javascript">
+function init()
+{
+    t1 = 0.0
+    t2 = 0.0
+    tmp = document.getElementsByTagName("input")
+    for (var i = 0; i < tmp.length; i+=2) { 
+    t1 += (parseFloat(tmp[i].value) * parseFloat(tmp[i+1].value))
+    t2 += parseFloat(tmp[i+1].value)
+    }
+    document.getElementById("cgpa").innerHTML=(t1/t2)
+}
+</script>
+</head>
+<body>
+<table border="2px">
+<tr>
+<td><input type="text" placeholder="Sem 1 SGPA"></input></td>
+<td><input type="text" placeholder="Sem 1 Credits" onfocus="this.value = 25"></input></td>
+</tr>
+<tr>
+<td><input type="text" placeholder="Sem 2 SGPA"></input></td>
+<td><input type="text" placeholder="Sem 2 Credits" onfocus="this.value = 26"></input></td>
+</tr>
+<tr>
+<td><input type="text" placeholder="Sem 3 SGPA"></input>
+<td><input type="text" placeholder="Sem 3 Credits" onfocus="this.value = 26"></input></td>
+</tr>
+<tr>
+<td><input type="text" placeholder="Sem 4 SGPA"></input>
+<td><input type="text" placeholder="Sem 4 Credits" onfocus="this.value = 26"></input></td>
+</tr>
+<tr>
+<td><input type="text" placeholder="Sem 5 SGPA"></input>
+<td><input type="text" placeholder="Sem 5 Credits" onfocus="this.value = 25.5"></input></td>
+</tr>
+<tr>
+<td><input type="text" placeholder="Sem 6 SGPA"></input>
+<td><input type="text" placeholder="Sem 6 Credits" onfocus="this.value = 25.5"></input></td>
+</tr>
+<tr>
+<td><input type="text" placeholder="Sem 7 SGPA"></input>
+<td><input type="text" placeholder="Sem 7 Credits" onfocus="this.value = 25"></input></td>
+</tr>
+<tr>
+<td><input type="text" placeholder="Sem 8 SGPA"></input></td>
+<td><input type="text" placeholder="Sem 8 Credits" onfocus="this.value = 25"></input></td>
+</tr>
+<tfoot>
+CS / IS Just Focus to Credits To Load Sem Credits Automatically
+</tfoot>
+</table>
+<span>CGPA::</span>
+<div id="cgpa"> :)</div>
+<button onclick="init()">Calculate!</button>
+<br/>
+<br/>
+<br/>
+<div>Disclaimer I Shall Not Be Responsible For Any Mistakes..If you find any ,mail me at git(@)saigopal.com.</div>
+<div>Source Code Can Be Found At <a href="https://github.com/lrsaigopal/lrsaigopal.github.io/tree/master/cgpa">github.com/lrsaigopal</a></div>
+</body>
+</html>
